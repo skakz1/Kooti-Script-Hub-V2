@@ -1,0 +1,2291 @@
+
+
+local repo
+if gameGetService(UserInputService).TouchEnabled or gameGetService(UserInputService).GamepadEnabled then
+    repo = 'httpsraw.githubusercontent.comLionTheGreatRealFrFrMobileLinoriaLibmain'
+    print(Mobile Loaded)
+else
+    repo = 'httpsraw.githubusercontent.comviolin-suzutsukiLinoriaLibmain'
+    print(PC Loaded)
+end
+
+--  UI Library
+local Library = loadstring(gameHttpGet(repo .. 'Library.lua'))()
+local ThemeManager = loadstring(gameHttpGet(repo .. 'addonsThemeManager.lua'))()
+local SaveManager = loadstring(gameHttpGet(repo .. 'addonsSaveManager.lua'))()
+
+--  Get Player Info
+local LocalPlayer = gameGetService(Players).LocalPlayer
+local Username = LocalPlayer.Name  
+
+--  Show Notification on Script Load
+LibraryNotify(Welcome Thank you for using [Bypassin] -  .. Username ..  👏, 5)
+task.wait(1) 
+LibraryNotify(Status 🟢 Undetected (Safe from bans), 5)
+
+--  Create Main UI Window
+local Window = LibraryCreateWindow({
+    Title = 'Bypassin  [Beta v1.0]  Premium Version',
+    Center = true,
+    AutoShow = true,
+    TabPadding = 8,
+    MenuFadeTime = 0.2
+})
+
+--  Tabs
+local Tabs = {
+    Main = WindowAddTab('Main'),
+    Player = WindowAddTab('Player'),
+   -- Autofarm = WindowAddTab('Autofarm'),
+    Combat = WindowAddTab('Combat'),
+    Visuals = WindowAddTab('Visuals'),
+    ['Settings'] = WindowAddTab('Settings'),
+}
+
+--  Create Groupboxes
+local DupeBox = Tabs.MainAddLeftGroupbox(Dupe)
+local QuickShop = Tabs.MainAddLeftGroupbox('Quick Shop')
+local Tele = Tabs.MainAddLeftGroupbox('Teleport')
+
+local ATMBank = Tabs.MainAddRightGroupbox('ATM  Bank')
+local Misc = Tabs.MainAddRightGroupbox('Misc')
+local TargetBox = Tabs.PlayerAddLeftGroupbox(Target)
+local Troll = Tabs.PlayerAddLeftGroupbox(Troll)
+local Gun = Tabs.PlayerAddLeftGroupbox(Gun Mods)
+--local TeleportBox = Tabs.CombatAddLeftGroupbox(Teleports)
+local Movement = Tabs.PlayerAddRightGroupbox(Movement)
+local ExtraBox = Tabs.PlayerAddRightGroupbox(Player Mods)
+local Visuals = Tabs.VisualsAddLeftGroupbox(Visuals Settings)
+local World = Tabs.VisualsAddRightGroupbox(World Visuals)
+-- local Autofarm = Tabs.AutofarmAddLeftGroupbox(Autofarm)
+local Combat = Tabs.CombatAddRightGroupbox(Fov Settings)
+local Extra = Tabs.CombatAddLeftGroupbox(HitBox)
+local Farm = Tabs.MainAddRightGroupbox('Quick Farms')
+
+local UserInputService = gameGetService(UserInputService)
+local RunService = gameGetService(RunService)
+local Players = gameGetService(Players)
+
+local player = Players.LocalPlayer
+local character
+local humanoidRootPart
+local humanoid
+
+local function updateCharacterReferences()
+    character = player.Character or player.CharacterAddedWait()
+    humanoidRootPart = characterWaitForChild(HumanoidRootPart)
+    humanoid = characterWaitForChild(Humanoid)
+end
+
+updateCharacterReferences()
+
+local speed = 16 -- Default walking speed
+local flightSpeed = 100 -- Default flight speed
+local boostMultiplier = 2 -- Speed boost when holding Shift
+local enhancedWalk = false
+local flying = false
+
+local bodyVelocity
+local bodyGyro
+
+-- Function to stop all movement
+local function cleanupMovement()
+    if bodyVelocity then bodyVelocityDestroy() end
+    if bodyGyro then bodyGyroDestroy() end
+    bodyVelocity = nil
+    bodyGyro = nil
+end
+
+local function startEnhancedWalk()
+    if enhancedWalk then return end
+    enhancedWalk = true
+
+    cleanupMovement()
+
+    -- Disable BodyVelocity, use HumanoidRootPart velocity directly
+    humanoidRootPart.AssemblyLinearVelocity = Vector3.zero 
+
+    bodyGyro = Instance.new(BodyGyro)
+    bodyGyro.MaxTorque = Vector3.new(0, math.huge, 0)
+    bodyGyro.CFrame = humanoidRootPart.CFrame
+    bodyGyro.Parent = humanoidRootPart
+
+    RunService.RenderSteppedConnect(function()
+        if not enhancedWalk then return end
+        local camera = workspace.CurrentCamera
+        local moveDirection = Vector3.zero
+
+        if UserInputServiceIsKeyDown(Enum.KeyCode.W) then
+            moveDirection = moveDirection + Vector3.new(camera.CFrame.LookVector.X, 0, camera.CFrame.LookVector.Z)
+        end
+        if UserInputServiceIsKeyDown(Enum.KeyCode.S) then
+            moveDirection = moveDirection - Vector3.new(camera.CFrame.LookVector.X, 0, camera.CFrame.LookVector.Z)
+        end
+        if UserInputServiceIsKeyDown(Enum.KeyCode.A) then
+            moveDirection = moveDirection - camera.CFrame.RightVector
+        end
+        if UserInputServiceIsKeyDown(Enum.KeyCode.D) then
+            moveDirection = moveDirection + camera.CFrame.RightVector
+        end
+
+        local currentSpeed = speed
+        if UserInputServiceIsKeyDown(Enum.KeyCode.LeftShift) then
+            currentSpeed = speed  boostMultiplier
+        end
+
+        if moveDirection.Magnitude  0 then
+            moveDirection = moveDirection.Unit  currentSpeed
+        else
+            moveDirection = Vector3.zero
+        end
+
+        -- Apply velocity directly instead of using BodyVelocity
+        humanoidRootPart.AssemblyLinearVelocity = Vector3.new(moveDirection.X, humanoidRootPart.AssemblyLinearVelocity.Y  0.85, moveDirection.Z) 
+
+        -- Keep rotation smooth
+        bodyGyro.CFrame = CFrame.new(humanoidRootPart.Position, humanoidRootPart.Position + Vector3.new(camera.CFrame.LookVector.X, 0, camera.CFrame.LookVector.Z))
+    end)
+end
+
+local function stopEnhancedWalk()
+    enhancedWalk = false
+    cleanupMovement()
+    if bodyGyro then
+        bodyGyroDestroy()
+    end
+    humanoidRootPart.AssemblyLinearVelocity = Vector3.zero
+end
+
+-- Function to start flying
+local function startFlying()
+    if flying then return end
+    flying = true
+    
+    cleanupMovement()
+    
+    bodyVelocity = Instance.new(BodyVelocity)
+    bodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    bodyVelocity.Velocity = Vector3.zero
+    bodyVelocity.Parent = humanoidRootPart
+
+    bodyGyro = Instance.new(BodyGyro)
+    bodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+    bodyGyro.CFrame = humanoidRootPart.CFrame
+    bodyGyro.Parent = humanoidRootPart
+
+    RunService.RenderSteppedConnect(function()
+        if not flying then return end
+        local camera = workspace.CurrentCamera
+        local moveDirection = Vector3.zero
+
+        if UserInputServiceIsKeyDown(Enum.KeyCode.W) then
+            moveDirection = moveDirection + camera.CFrame.LookVector
+        end
+        if UserInputServiceIsKeyDown(Enum.KeyCode.S) then
+            moveDirection = moveDirection - camera.CFrame.LookVector
+        end
+        if UserInputServiceIsKeyDown(Enum.KeyCode.A) then
+            moveDirection = moveDirection - camera.CFrame.RightVector
+        end
+        if UserInputServiceIsKeyDown(Enum.KeyCode.D) then
+            moveDirection = moveDirection + camera.CFrame.RightVector
+        end
+        if UserInputServiceIsKeyDown(Enum.KeyCode.Space) then
+            moveDirection = moveDirection + Vector3.new(0, 1, 0)
+        end
+        if UserInputServiceIsKeyDown(Enum.KeyCode.LeftControl) then
+            moveDirection = moveDirection - Vector3.new(0, 1, 0)
+        end
+
+        local currentSpeed = flightSpeed
+        if UserInputServiceIsKeyDown(Enum.KeyCode.LeftShift) then
+            currentSpeed = flightSpeed  boostMultiplier
+        end
+
+        if moveDirection.Magnitude  0 then
+            bodyVelocity.Velocity = moveDirection.Unit  currentSpeed
+        else
+            bodyVelocity.Velocity = Vector3.zero
+        end
+        bodyGyro.CFrame = camera.CFrame
+    end)
+end
+
+local function stopFlying()
+    flying = false
+    cleanupMovement()
+end
+
+-- GUI Toggle for Enhanced Walking
+
+
+-- Speed Slider for Walkspeed
+MovementAddSlider('WalkspeedSlider', {
+    Text = 'Change Walkspeed',
+    Default = 16,
+    Min = 16,
+    Max = 300,
+    Rounding = 1,
+    Callback = function(value)
+        speed = value
+    end
+})
+
+
+-- Speed Slider for Flight Speed
+MovementAddSlider('FlightSpeedSlider', {
+    Text = 'Change Fly Speed',
+    Default = 100,
+    Min = 50,
+    Max = 2000,
+    Rounding = 0,
+    Callback = function(value)
+        flightSpeed = value
+    end
+})
+-- Character Respawn Handling
+player.CharacterAddedConnect(function()
+    updateCharacterReferences()
+    cleanupMovement()
+    if enhancedWalk then startEnhancedWalk() end
+    if flying then stopFlying() end -- Ensure flight stops completely before restarting
+end)
+
+
+
+
+
+
+TrollAddButton(Spam Call Police, function()
+    for i = 1,getgenv().intsdp do
+        task.wait(0.05)
+        gameGetService(ReplicatedStorage).CallPoliceFireServer()
+    end
+end)
+
+
+local localPlayer = gameGetService(Players).LocalPlayer
+local uis = gameGetService(UserInputService)
+local rs = gameGetService(RunService)
+local isMoving = {W = false, A = false, S = false, D = false} -- Table to track movement keys
+local multiplier = 1  -- Default multiplier (adjustable by the slider)
+local movementEnabled = false -- Movement starts disabled
+local SwimMethodEnabled = false -- Freefall starts disabled
+local currentWalkSpeed = 16  -- Default Walkspeed
+
+-- Display a hint for 2 seconds
+task.spawn(function()
+    local hint = Instance.new(Hint, workspace)
+    task.wait(2)
+    hintDestroy()
+end)
+
+-- Function to move the character based on key input
+local function moveCharacter()
+    if movementEnabled and localPlayer.Character and localPlayer.CharacterFindFirstChild(HumanoidRootPart) then
+        local direction = Vector3.new(0, 0, 0)
+        local camera = workspace.CurrentCamera
+
+        -- Adjust the direction based on pressed keys
+        if isMoving.W then
+            direction = direction + Vector3.new(camera.CFrame.LookVector.X, 0, camera.CFrame.LookVector.Z) -- Forward
+        end
+        if isMoving.A then
+            direction = direction - Vector3.new(camera.CFrame.RightVector.X, 0, camera.CFrame.RightVector.Z) -- Left
+        end
+        if isMoving.S then
+            direction = direction - Vector3.new(camera.CFrame.LookVector.X, 0, camera.CFrame.LookVector.Z) -- Backward
+        end
+        if isMoving.D then
+            direction = direction + Vector3.new(camera.CFrame.RightVector.X, 0, camera.CFrame.RightVector.Z) -- Right
+        end
+
+        -- Normalize direction and move the character
+        if direction.Magnitude  0 then
+            direction = direction.Unit  multiplier
+            localPlayer.Character.HumanoidRootPart.CFrame = localPlayer.Character.HumanoidRootPart.CFrame + direction
+        end
+    end
+end
+
+-- Key press detection for W, A, S, D
+uis.InputBeganConnect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    if input.KeyCode == Enum.KeyCode.W then
+        isMoving.W = true
+    elseif input.KeyCode == Enum.KeyCode.A then
+        isMoving.A = true
+    elseif input.KeyCode == Enum.KeyCode.S then
+        isMoving.S = true
+    elseif input.KeyCode == Enum.KeyCode.D then
+        isMoving.D = true
+    end
+end)
+
+-- Stop moving when the key is released
+uis.InputEndedConnect(function(input, gameProcessed)
+    if gameProcessed then return end
+
+    if input.KeyCode == Enum.KeyCode.W then
+        isMoving.W = false
+    elseif input.KeyCode == Enum.KeyCode.A then
+        isMoving.A = false
+    elseif input.KeyCode == Enum.KeyCode.S then
+        isMoving.S = false
+    elseif input.KeyCode == Enum.KeyCode.D then
+        isMoving.D = false
+    end
+end)
+
+-- Update the character's position every frame based on key input
+rs.RenderSteppedConnect(moveCharacter)
+
+
+
+-- Freefall Method Logic
+getgenv().SwimMethod = false
+
+task.spawn(function()
+    while task.wait() do
+        if getgenv().SwimMethod then
+            local player = gameGetService(Players).LocalPlayer
+            if player and player.Character and player.CharacterFindFirstChild(Humanoid) then
+                local humanoid = player.Character.Humanoid
+                humanoidChangeState(Enum.HumanoidStateType.FallingDown     )
+            end
+        end
+    end
+end)
+print(bypassed lol)
+local UserInputService = gameGetService(UserInputService)
+local RunService = gameGetService(RunService)
+
+local player = game.Players.LocalPlayer
+local character = player.Character or player.CharacterAddedWait()
+local humanoidRootPart = characterFindFirstChild(HumanoidRootPart)
+
+local movementEnabled = false
+local currentWalkSpeed = 16  -- Default speed
+
+--- MovementAddSlider('WalkspeedSlider', {
+   ---  Text = 'Change Walkspeed',
+  ---   Default = 16,
+  ---   Min = 16,
+  ---   Max = 300,
+ ---    Rounding = 1,
+  ---   Callback = function(value)
+  ---       currentWalkSpeed = value  -- Save the new speed
+  ---   end
+--- })
+
+
+
+
+MovementAddSlider('JumpPowerSlider', {
+    Text = 'Change Jump Height',
+    Default = 1,  -- Default jump height
+    Min = 1,  -- Minimum jump height
+    Max = 20000,  -- Maximum jump height
+    Rounding = 1,
+    Callback = function(value)
+        currentJumpPower = value  -- Save the new jump height
+        local humanoid = game.Players.LocalPlayer.Character.Humanoid
+        if jumpPowerEnabled then
+            humanoid.JumpHeight = value  -- Change jump height in real-time
+        else
+            humanoid.JumpHeight = 9  -- Set jump height to 9 when disabled
+        end
+    end
+})
+
+
+
+MovementAddToggle('EnableWalkspeed', {
+    Text = 'Walkspeed',
+    Default = false,  
+    Callback = function(enabled)
+        if enabled then
+            startEnhancedWalk()
+        else
+            stopEnhancedWalk()
+        end
+    end
+})
+
+-- GUI Toggle for Flight
+MovementAddToggle('EnableFlight', {
+    Text = 'Fly',
+    Default = false,  
+    Callback = function(enabled)
+        if enabled then
+            startFlying()
+        else
+            stopFlying()
+        end
+    end
+})
+
+
+MovementAddToggle('EnableJumpPower', {
+    Text = 'Jump Power',
+    Default = false,  -- Default to off
+    Callback = function(Value)
+        if Value then
+            -- Enable Jump Power with the current jump power (don't reset to 50)
+            game.Players.LocalPlayer.Character.Humanoid.JumpPower = currentJumpPower
+            jumpPowerEnabled = true  -- Enable jump power when toggle is on
+        else
+            -- Disable Jump Power
+            game.Players.LocalPlayer.Character.Humanoid.JumpPower = 0  -- Disable jump power if toggle is off
+            jumpPowerEnabled = false  -- Disable jump power when toggle is off
+        end
+    end
+})
+
+local noclip = false
+
+-- Function to toggle noclip
+local function toggleNoclip()
+    noclip = not noclip
+    if noclip then
+        for _, part in pairs(characterGetDescendants()) do
+            if partIsA(BasePart) and part.CanCollide then
+                part.CanCollide = false
+            end
+        end
+    else
+        for _, part in pairs(characterGetDescendants()) do
+            if partIsA(BasePart) then
+                part.CanCollide = true
+            end
+        end
+    end
+end
+-- Create the toggle button for Infinite Jump
+local infJump
+local infJumpDebounce = false
+local UserInputService = gameGetService(UserInputService)
+
+MovementAddToggle('InfiniteJumpToggle', {
+    Text = 'Infinite Jump',
+    Default = false,  -- Default to off
+    Callback = function(Value)
+        local humanoid = speaker.CharacterFindFirstChildWhichIsA(Humanoid)
+        
+        -- If Infinite Jump is enabled
+        if Value then
+            -- Disconnect any previous infinite jump connections
+            if infJump then
+                infJumpDisconnect()
+            end
+            infJumpDebounce = false
+
+            -- Set up the infinite jump logic
+            infJump = UserInputService.JumpRequestConnect(function()
+                if not infJumpDebounce then
+                    infJumpDebounce = true
+                    -- Make the humanoid jump
+                    if humanoid then
+                        humanoidChangeState(Enum.HumanoidStateType.Jumping)
+                        wait(0.1)  -- Ensure the jump state is set
+                        humanoidChangeState(Enum.HumanoidStateType.Seated)  -- Optionally simulate landing
+                    end
+                    infJumpDebounce = false
+                end
+            end)
+
+        else
+            -- Disable infinite jump when toggle is off
+            if infJump then
+                infJumpDisconnect()
+            end
+            infJumpDebounce = false
+        end
+    end
+})
+
+
+
+-- Create the toggle button for noclip
+MovementAddToggle('NoclipToggle', {
+    Text = 'Noclip',
+    Default = false,  -- Default to off
+    Callback = function(Value)
+        toggleNoclip(Value)  -- Call the toggleNoclip function when the toggle state changes
+    end
+})
+
+-- Infinite Jump Script with Toggle Control
+
+-- Services
+-- Use getgenv() to store the infinite jump state globally
+
+--  Infinite Stamina
+local LocalPlayer = gameGetService(Players).LocalPlayer
+
+-- Infinite Stamina Toggle
+ExtraBoxAddToggle('InfiniteStamina', {
+    Text = 'Infinite Stamina', 
+    Default = false,
+    Callback = function(Value)
+        local StaminaBar = LocalPlayer.PlayerGuiFindFirstChild(Run) and 
+                           LocalPlayer.PlayerGui.Run.Frame.Frame.FrameFindFirstChild(StaminaBarScript)
+        if StaminaBar then
+            StaminaBar.Enabled = not Value
+        end
+    end
+})
+
+-- Infinite Hunger Toggle
+ExtraBoxAddToggle('InfiniteHunger', {
+    Text = 'Infinite Hunger',
+    Default = false,
+    Callback = function(Value)
+        local playerGui = gameGetService(Players).LocalPlayer.PlayerGui
+        local hungerBar = playerGui.Hunger.Frame.Frame.FrameFindFirstChild(HungerBarScript)
+
+        if hungerBar then
+            hungerBar.Enabled = not Value
+        end
+    end
+})
+
+-- Infinite Sleep Toggle
+ExtraBoxAddToggle('InfiniteSleep', {
+    Text = 'Infinite Sleep',
+    Default = false,
+    Callback = function(Value)
+        local sleepGui = gameGetService(Players).LocalPlayer.PlayerGui.SleepGui
+        local sleepBar = sleepGui.Frame.sleep.SleepBarFindFirstChild(sleepScript)
+
+        if sleepBar then
+            sleepBar.Enabled = not Value
+        end
+    end
+})
+
+-- No Rent Pay Toggle
+ExtraBoxAddToggle('NoRentPay', {
+    Text = 'No Rent Pay',
+    Default = false,
+    Callback = function(Value)
+        local rentGui = gameGetService(StarterGui).RentGui
+        local rentScript = rentGuiFindFirstChild(LocalScript)
+
+        if rentScript then
+            rentScript.Enabled = not Value
+        end
+    end
+})
+
+-- Instant Interaction Toggle
+ExtraBoxAddToggle('InstantInteraction', {
+    Text = 'Instant Interaction', 
+    Default = false,
+    Callback = function(Value)
+        for _, v in pairs(game.WorkspaceGetDescendants()) do
+            if vIsA(ProximityPrompt) then
+                v.HoldDuration = Value and 0 or 1
+                v.RequiresLineOfSight = not Value
+            end
+        end
+    end
+})
+
+-- Remove Jump Cooldown Toggle
+local JumpDebounceBackup
+
+ExtraBoxAddToggle('RemoveJumpCooldown', {
+    Text = 'Remove Jump Cooldown', 
+    Default = false,
+    Callback = function(Value)
+        local JumpDebounce = LocalPlayer.PlayerGuiFindFirstChild(JumpDebounce)
+        if Value then
+            if JumpDebounce then
+                JumpDebounceBackup = JumpDebounceClone()
+                JumpDebounceDestroy()
+            end
+        else
+            if not LocalPlayer.PlayerGuiFindFirstChild(JumpDebounce) and JumpDebounceBackup then
+                JumpDebounceBackup.Parent = LocalPlayer.PlayerGui
+                JumpDebounceBackup = nil
+            end
+        end
+    end
+})
+
+-- Anti Fall Damage Toggle
+ExtraBoxAddToggle('AntiFallDamage', {
+    Text = 'Anti Fall Damage', 
+    Default = false,
+    Callback = function(Value)
+        local player = game.Players.LocalPlayer
+        local character = player.Character or player.CharacterAddedWait()
+        local humanoid = characterFindFirstChild(Humanoid)
+        local fallDamage = characterFindFirstChild(FallDamageRagdoll)
+
+        if humanoid and fallDamage then
+            if Value then
+                fallDamageDestroy() 
+            else
+               
+                print(Fall damage enabled.)  -- For example, you could re-enable fall damage here if needed
+            end
+        end
+    end
+})
+ExtraBoxAddToggle('AntiJumpCooldown', {
+    Text = 'Anti Jump Cooldown',
+    Default = false,
+    Callback = function(Value)
+        local localPlayer = gameGetService(Players).LocalPlayer
+        local jumpDebounce = localPlayer.PlayerGuiFindFirstChild(JumpDebounce)
+        local localScript = jumpDebounce and jumpDebounceFindFirstChild(LocalScript)
+
+        if localScript then
+            if Value then
+                localScript.Enabled = false
+            else
+                localScript.Enabled = true
+            end
+        end
+    end
+})
+
+--Main 
+
+local lastDupeTime = 0
+local cooldownTime = 1 
+
+task.spawn(function()
+    while task.wait() do
+        if getgenv().SwimMethod then
+            local player = gameGetService(Players).LocalPlayer
+            if player and player.Character and player.CharacterFindFirstChild(Humanoid) then
+                player.Character.HumanoidChangeState(Enum.HumanoidStateType.FallingDown)
+            end
+        end
+    end
+end)
+
+DupeBoxAddButton('Safe Dupe', function()
+    local currentTime = os.time()
+
+    if currentTime - lastDupeTime  cooldownTime then
+        return
+    end
+
+    lastDupeTime = currentTime
+    getgenv().SwimMethod = true 
+
+    task.wait(0.8)
+
+    local ReplicatedStorage = gameGetService(ReplicatedStorage)
+    local Players = gameGetService(Players)
+    local Workspace = gameGetService(Workspace)
+
+    local function GetCharacter()
+        return Players.LocalPlayer and Players.LocalPlayer.Character
+    end
+
+    local function BypassTp(targetCFrame)
+        local character = GetCharacter()
+        if character and characterFindFirstChild(HumanoidRootPart) then
+            character.HumanoidRootPart.CFrame = targetCFrame + Vector3.new(2, 0, 0)
+        end
+    end
+
+    local InventoryRemote = ReplicatedStorageWaitForChild(Inventory)
+    local BackpackRemote = ReplicatedStorageWaitForChild(BackpackRemote)
+
+    local character = GetCharacter()
+    if character and characterFindFirstChildOfClass(Tool) then
+        local gunTool = characterFindFirstChildOfClass(Tool)
+        local gunName = gunTool.Name
+
+        local humanoid = characterFindFirstChildOfClass(Humanoid)
+        if humanoid then humanoidUnequipTools() end
+
+        local safe = workspaceFindFirstChild(1# Map) 
+                 and workspace[1# Map]FindFirstChild(2 Crosswalks) 
+                 and workspace[1# Map][2 Crosswalks].SafesGetChildren()[5]
+        if not safe then 
+            getgenv().SwimMethod = false 
+            return 
+        end
+
+        local oldCFrame = characterFindFirstChild(HumanoidRootPart) and character.HumanoidRootPart.CFrame
+
+        BypassTp(safe.Union.CFrame)
+        task.wait(0.5)
+
+        task.spawn(function()
+            BackpackRemoteInvokeServer(Store, gunName)
+        end)
+
+        task.spawn(function()
+            InventoryRemoteFireServer(Change, gunName, Backpack, safe)
+        end)
+
+        task.wait(0.5)
+
+        if oldCFrame then
+            BypassTp(oldCFrame)
+        end
+
+        task.wait(1.2)
+
+        BackpackRemoteInvokeServer(Grab, gunName)
+
+        task.wait(0.5)
+
+        if oldCFrame then
+            BypassTp(oldCFrame)
+        end
+
+        getgenv().SwimMethod = false 
+    else
+        getgenv().SwimMethod = false 
+    end
+end)
+
+QuickShopAddButton('Buy Shiesty', function()
+    local ohString1 = Shiesty
+    gameGetService(ReplicatedStorage).ShopRemoteInvokeServer(ohString1)
+end)
+
+
+
+QuickShopAddButton('Buy Shiesty', function()
+    local ohString1 = Shiesty
+    gameGetService(ReplicatedStorage).ShopRemoteInvokeServer(ohString1)
+end)
+
+QuickShopAddButton('Buy BluGloves', function()
+    local ohString1 = BluGloves
+    gameGetService(ReplicatedStorage).ShopRemoteInvokeServer(ohString1)
+end)
+
+QuickShopAddButton('Buy WhiteGloves', function()
+    local ohString1 = WhiteGloves
+    gameGetService(ReplicatedStorage).ShopRemoteInvokeServer(ohString1)
+end)
+
+QuickShopAddButton('Buy BlackGloves', function()
+    local ohString1 = BlackGloves
+    gameGetService(ReplicatedStorage).ShopRemoteInvokeServer(ohString1)
+end)
+
+QuickShopAddButton('Buy Water', function()
+    local ohString1 = Water
+    gameGetService(ReplicatedStorage).ShopRemoteInvokeServer(ohString1)
+end)
+
+QuickShopAddLabel('+++++++++ Èxð†ï¢ Ðêålêr +++++++++') 
+
+QuickShopAddButton('Buy Fake Card', function()
+    local args = {
+        [1] = FakeCard
+    }
+    
+    gameGetService(ReplicatedStorage)WaitForChild(ExoticShopRemote)InvokeServer(unpack(args))
+end)
+
+
+QuickShopAddButton('Buy IceFruit Bag', function()
+    local args = {
+        [1] = Ice-Fruit Bag
+    }
+    
+    gameGetService(ReplicatedStorage)WaitForChild(ExoticShopRemote)InvokeServer(unpack(args))
+    
+    
+    
+end)
+
+QuickShopAddButton('Buy IceFruit Cupz', function()
+    local args = {
+        [1] = Ice-Fruit Cupz
+    }
+    
+    gameGetService(ReplicatedStorage)WaitForChild(ExoticShopRemote)InvokeServer(unpack(args))
+    
+    
+end)
+
+QuickShopAddButton('Buy Fiji Water', function()
+    local args = {
+        [1] = FijiWater
+    }
+    
+    gameGetService(ReplicatedStorage)WaitForChild(ExoticShopRemote)InvokeServer(unpack(args))
+    
+    
+end)
+
+
+
+local locations = {
+    [Gunshop] = Vector3.new(92972.28125, 122097.953125, 17022.783203125),
+    [Gunshop 2] = Vector3.new(66202, 123615.7109375, 5749.81591796875),
+    [Gunshop 3] = Vector3.new(60819.78515625, 87609.140625, -347.30889892578125),
+    [Safe Items] = Vector3.new(68514.8984375, 52941.5, -796.0919799804688),
+    [Construction Site] = Vector3.new(-1731.8306884765625, 370.8122863769531, -1176.8387451171875),
+    [Ice Box] = Vector3.new(-249.5778045654297, 283.5154113769531, -1256.6583251953125),
+    [Frozen Shop] = Vector3.new(-225.86630249023438, 283.84869384765625, -1169.9425048828125),
+    [Drip Store] = Vector3.new(67462.6953125, 10489.0322265625, 549.5894775390625),
+    [Bank] = Vector3.new(-240.43710327148438, 283.6267395019531, -1214.412841796875),
+    [Pawn Shop] = Vector3.new(-1049.64306640625, 253.53065490722656, -814.2697143554688),
+    [Penthouse] = Vector3.new(-163.68460083007812, 419.4623718261719, -568.8828735351562),
+    [Chicken Wings] = Vector3.new(-957.9141845703125, 253.53065490722656, -815.9442138671875),
+    [Deli] = Vector3.new(-927.72607421875, 253.7330780029297, -691.3687133789062),
+    [Dominos] = Vector3.new(-771.4325561523438, 253.22897338867188, -956.450927734375),
+    [Car Dealer] = Vector3.new(-410.5223083496094, 253.2564697265625, -1245.553955078125)
+}
+
+-- Function to get keys from a table (location names)
+local function tableKeys(tbl)
+    local keys = {}
+    for key, _ in pairs(tbl) do
+        table.insert(keys, key)
+    end
+    return keys
+end
+
+-- ✅ Freefall System for Safe Teleportation
+getgenv().SwimMethod = false
+
+
+local player = gameGetService(Players).LocalPlayer
+local SelectedLocation = nil
+
+-- Function to Teleport to a Location
+function teleportToLocation()
+    if not SelectedLocation then
+        LibraryNotify(Error No location selected!, 3)
+        return
+    end
+
+    local character = player.Character
+    local humanoidRootPart = characterFindFirstChild(HumanoidRootPart)
+
+    if not humanoidRootPart then
+        LibraryNotify(Error Invalid Teleport Location!, 3)
+        return
+    end
+
+    -- Enable Freefall Before Teleportation
+    getgenv().SwimMethod = true
+    task.wait(1) -- 1 second delay for freefall effect
+
+    -- Teleport to the selected location
+    local targetPosition = SelectedLocation
+    humanoidRootPart.CFrame = CFrame.new(targetPosition)
+
+    -- Disable Freefall After Teleportation
+    getgenv().SwimMethod = false
+    LibraryNotify(Teleported to location, 3)
+end
+
+-- Location Selection Dropdown under TeleportBox
+local locationDropdown = TeleAddDropdown('LocationDropdown', {
+    Values = tableKeys(locations),  -- Populate with location names (keys)
+    Default = ,
+    Multi = false,
+    Text = 'Select Location',
+    Callback = function(selectedLocation)
+        if locations[selectedLocation] then
+            SelectedLocation = locations[selectedLocation]
+            LibraryNotify(Location Found  .. selectedLocation, 3)
+            teleportToLocation()  -- Automatically teleport after selection
+        else
+            LibraryNotify(Error Location not found!, 3)
+        end
+    end
+})
+
+local SelectedPlayer
+
+-- Function to update the player list (excluding the local player)
+local function updatePlayerList()
+    local players = {}
+    for _, player in pairs(game.PlayersGetPlayers()) do
+        if player ~= game.Players.LocalPlayer then
+            table.insert(players, player.Name)
+        end
+    end
+    return players
+end
+
+-- Function to find player based on the selected name
+local function findPlayer(playerName)
+    SelectedPlayer = game.PlayersFindFirstChild(playerName)
+    if not SelectedPlayer then
+        LibraryNotify(Player not found!, 3)
+    end
+end
+
+-- Player Dropdown to select a player
+local playerDropdown = TargetBoxAddDropdown('PlayerDropdown', {
+    Values = updatePlayerList(),  -- Populate with player list excluding the local player
+    Default = ,
+    Multi = false,
+    Text = 'Select Player',
+    Callback = function(selectedPlayer)
+        findPlayer(selectedPlayer)  -- Set the selected player
+    end
+})
+
+-- Auto-Refresh Player List Every 1 Second
+task.spawn(function()
+    while task.wait(1) do
+        local newList = updatePlayerList()  -- Get updated player list
+        -- Update dropdown with new list of players
+        TargetBox.Options.PlayerDropdown.Values = newList
+        TargetBox.Options.PlayerDropdownSetValues(newList)
+    end
+end)
+
+
+TargetBoxAddToggle('GotoToggle', {
+    Text = 'Goto Player',
+    Default = false,
+    Callback = function(Value)
+        if Value then
+            if SelectedPlayer then
+                if SelectedPlayer.Character and SelectedPlayer.CharacterFindFirstChild(HumanoidRootPart) then
+                    local localPlayerCharacter = game.Players.LocalPlayer.Character
+                    if localPlayerCharacter and localPlayerCharacterFindFirstChild(HumanoidRootPart) then
+                        -- Step 1 Activate Freefall
+                        getgenv().SwimMethod = true
+
+                        -- Step 2 Wait 1 second before teleporting
+                        task.wait(1)
+
+                        -- Step 3 Teleport local player by setting their HumanoidRootPart to the target's position
+                        local targetRoot = SelectedPlayer.Character.HumanoidRootPart.CFrame
+                        localPlayerCharacter.HumanoidRootPart.CFrame = targetRoot
+
+                        -- Step 4 Deactivate Freefall after teleportation
+                        getgenv().SwimMethod = false
+
+                        LibraryNotify([Bypassin] - Teleported to  .. SelectedPlayer.Name, 3)
+                    else
+                        LibraryNotify([Bypassin] - Unable to teleport character not found, 3)
+                    end
+                else
+                    LibraryNotify([Bypassin] - Unable to teleport target's character not found, 3)
+                end
+            else
+                LibraryNotify([Bypassin] - No target selected to teleport to, 3)
+            end
+
+            -- Turn off the teleport toggle after performing the action
+            TargetBox.Options.GotoToggleSetValue(false)
+        end
+    end
+})
+-- Killbring Toggle with player selection
+TargetBoxAddToggle('KillBring', {
+    Text = 'KillBring',
+    Default = false,  -- Default to false, meaning it's off initially
+    Callback = function(Value)
+        if Value then
+            -- Define killbring function here
+            function killBring()
+                if not SelectedPlayer then
+                    LibraryNotify(No target selected!, 3)
+                    return false
+                end
+
+                local targetPlayer = SelectedPlayer
+                local speaker = game.Players.LocalPlayer
+
+                if targetPlayer and targetPlayer.Character and speaker.Character then
+                    local targetRoot = targetPlayer.CharacterFindFirstChild(HumanoidRootPart)
+                    local speakerRoot = speaker.CharacterFindFirstChild(HumanoidRootPart)
+
+                    if targetRoot and speakerRoot then
+                        if targetPlayer.CharacterFindFirstChildOfClass('Humanoid') then
+                            targetPlayer.CharacterFindFirstChildOfClass('Humanoid').Sit = false
+                        end
+
+                        task.wait()
+                        targetRoot.CFrame = speakerRoot.CFrame + Vector3.new(3, 1, 0)
+                        return true
+                    end
+                else
+                    LibraryNotify(Invalid target or speaker, 3)
+                    return false
+                end
+            end
+
+            getgenv().KillbringActive = true
+            -- Loop for Killbring action
+            while getgenv().KillbringActive do
+                if not killBring() then
+                    task.wait()
+                else
+                    task.wait()
+                end
+            end
+        else
+            getgenv().KillbringActive = false
+        end
+    end
+})
+
+-- Spectate Toggle
+local SpectateConnection
+
+local function spectatePlayer(enable)
+    if enable then
+        if SelectedPlayer and SelectedPlayer.Character and SelectedPlayer.CharacterFindFirstChild(Humanoid) then
+            -- Spectate Target Player
+            workspace.CurrentCamera.CameraSubject = SelectedPlayer.Character.Humanoid
+            LibraryNotify(Spectating  .. SelectedPlayer.Name, 3)
+
+            -- Handle Player Respawn
+            SpectateConnection = SelectedPlayer.CharacterAddedConnect(function(newCharacter)
+                workspace.CurrentCamera.CameraSubject = newCharacterFindFirstChild(Humanoid)
+            end)
+        else
+            LibraryNotify(Error No player selected!, 3)
+        end
+    else
+        -- Stop Spectating and Reset Camera
+        workspace.CurrentCamera.CameraSubject = game.Players.LocalPlayer.Character.Humanoid
+        if SpectateConnection then SpectateConnectionDisconnect() end
+        LibraryNotify(Stopped Spectating, 3)
+    end
+end
+
+TargetBoxAddToggle('SpectateToggle', {
+    Text = 'Spectate Player',
+    Default = false,
+    Callback = function(Value)
+        if SelectedPlayer then
+            spectatePlayer(Value)
+        else
+            LibraryNotify(Error No player selected to spectate!, 3)
+        end
+    end
+})
+
+-- Freefall script (integrated into the teleportation logic)
+getgenv().SwimMethod = true
+
+task.spawn(function()
+    while task.wait() do
+        if FreeFalMethod then
+            local player = gameGetService(Players).LocalPlayer
+            if player and player.Character and player.CharacterFindFirstChild(Humanoid) then
+                player.Character.HumanoidChangeState(Enum.HumanoidStateType.FallingDown)
+                player.Character.HumanoidChangeState(Enum.HumanoidStateType.FallingDown)
+            end
+        end
+    end
+end)
+
+-- Freefall script (integrated into the teleportation logic)
+getgenv().SwimMethod = true
+
+task.spawn(function()
+    while task.wait() do
+        if FreeFalMethod then
+            local player = gameGetService(Players).LocalPlayer
+            if player and player.Character and player.CharacterFindFirstChild(Humanoid) then
+                player.Character.HumanoidChangeState(Enum.HumanoidStateType.FallingDown)
+                player.Character.HumanoidChangeState(Enum.HumanoidStateType.FallingDown)
+            end
+        end
+    end
+end)
+
+-- Freefall script (activation will be controlled within teleportation logic)
+getgenv().SwimMethod = false  -- Initially set Freefall to false
+
+task.spawn(function()
+    while task.wait() do
+        if FreeFalMethod then
+            local player = gameGetService(Players).LocalPlayer
+            if player and player.Character and player.CharacterFindFirstChild(Humanoid) then
+                player.Character.HumanoidChangeState(Enum.HumanoidStateType.FallingDown)
+                player.Character.HumanoidChangeState(Enum.HumanoidStateType.FallingDown)
+            end
+        end
+    end
+end)
+
+-- Freefall script (activation will be controlled within teleportation logic)
+getgenv().SwimMethod = false  -- Initially set Freefall to false
+
+task.spawn(function()
+    while task.wait() do
+        if FreeFalMethod then
+            local player = gameGetService(Players).LocalPlayer
+            if player and player.Character and player.CharacterFindFirstChild(Humanoid) then
+                player.Character.HumanoidChangeState(Enum.HumanoidStateType.FallingDown)
+                player.Character.HumanoidChangeState(Enum.HumanoidStateType.FallingDown)
+            end
+        end
+    end
+end)
+
+-- Go To (Teleport) Toggle
+
+
+
+
+TargetBoxAddToggle('ViewInventory', {
+    Text = 'View Inventory',
+    Default = false,  -- Default to false, meaning it's off initially
+    Callback = function(Value)
+        if Value then
+            if SelectedPlayer then
+                if SelectedPlayerFindFirstChild(Backpack) then
+                    local backpackItems = SelectedPlayer.BackpackGetChildren()
+                    local itemNames = {}
+
+                    for _, v in ipairs(backpackItems) do
+                        table.insert(itemNames, v.Name)
+                    end
+
+                    local itemList = table.concat(itemNames, , )
+                    if #itemList  0 then
+                        LibraryNotify(Backpack items  .. itemList, 10)
+                    else
+                        LibraryNotify(The target player's Backpack is empty., 10)
+                    end
+                else
+                    LibraryNotify(The target player does not have a Backpack., 10)
+                end
+            else
+                LibraryNotify(No player selected!, 3)
+            end
+        end
+    end
+})
+
+--Atmbank
+
+FarmAddToggle('LootTrash', {
+    Text = 'Loot Trash', 
+    Default = false, 
+    Callback = function(State)
+        getgenv().SwimMethod = State
+
+        if getgenv().SwimMethod then
+            task.spawn(function()
+                while getgenv().SwimMethod do
+                    local player = gameGetService(Players).LocalPlayer
+                    if player and player.Character and player.CharacterFindFirstChild(Humanoid) then
+                        player.Character.HumanoidChangeState(Enum.HumanoidStateType.FallingDown)
+                        player.Character.HumanoidChangeState(Enum.HumanoidStateType.FallingDown)
+                    end
+                    task.wait(1)
+                end
+            end)
+        end
+
+        local locations = {
+            {Vector3.new(-964.9989624023438, 253.43922424316406, -783.6052856445312), 254},
+            {Vector3.new(-984.8490600585938, 253.44644165039062, -785.563720703125), 256},
+            {Vector3.new(-729.59814453125, 253.02725219726562, -670.14013671875), 255},
+            {Vector3.new(-728.9520263671875, 253.07473754882812, -667.8153686523438), 275},
+            {Vector3.new(-746.8911743164062, 253.64732360839844, -892.5064086914062), 271},
+            {Vector3.new(-609.7792358398438, 253.6804656982422, -567.5853271484375), 270},
+            {Vector3.new(-686.3480224609375, 253.6247100830078, -814.9418334960938), 269},
+            {Vector3.new(-689.2169799804688, 253.66555786132812, -702.0743408203125), 268},
+            {Vector3.new(-771.7647705078125, 253.66966247558594, -669.6239013671875), 267},
+            {Vector3.new(-668.0557861328125, 253.64610290527344, -791.9769287109375), 259},
+            {Vector3.new(-643.7940063476562, 253.69085693359375, -606.73291015625), 260},
+            {Vector3.new(-911.4022827148438, 253.704833984375, -604.6221923828125), 252},
+            {Vector3.new(-646.5739135742188, 253.70700073242188, -606.9832763671875), DumpsterPromt},
+            {Vector3.new(-773.4000854492188, 253.615478515625, -667.8728637695312), 262},
+            {Vector3.new(-606.7493286132812, 253.69046020507812, -516.2718505859375), 257},
+            {Vector3.new(-788.6242065429688, 253.5305633544922, -580.4627685546875), 264},
+            {Vector3.new(-686.4328002929688, 253.65306091308594, -769.3311767578125), 253},
+            {Vector3.new(-686.5704345703125, 253.64662170410156, -786.3427734375), 266}
+        }
+
+        local function lookDown(humanoidRootPart)
+            if humanoidRootPart then
+                local currentPosition = humanoidRootPart.Position
+                humanoidRootPart.CFrame = CFrame.new(currentPosition, currentPosition + Vector3.new(0, -1, 0))
+            end
+        end
+
+        for _, location in pairs(locations) do
+            local targetPosition = location[1]
+            local promptIndexOrName = location[2]
+
+            local player = game.Players.LocalPlayer
+            local character = player.Character
+            local humanoidRootPart = character and characterFindFirstChild(HumanoidRootPart)
+            
+            if humanoidRootPart then
+                humanoidRootPart.CFrame = CFrame.new(targetPosition)
+                lookDown(humanoidRootPart)
+            end
+
+            wait(1)
+
+            wait(2)
+
+            getgenv().SwimMethod = true
+
+            local targetObject
+            if type(promptIndexOrName) == number then
+                targetObject = workspaceGetChildren()[promptIndexOrName]
+            elseif type(promptIndexOrName) == string then
+                targetObject = workspaceFindFirstChild(promptIndexOrName)
+            end
+
+            local proximityPrompt = targetObject and targetObjectFindFirstChild(ProximityPrompt)
+
+            if proximityPrompt then
+                proximityPrompt.HoldDuration = 0
+                fireproximityprompt(proximityPrompt)
+            end
+        end
+
+        task.wait(2)
+
+        getgenv().SwimMethod = true
+    end
+})
+
+FarmAddToggle('Auto Sell', {
+    Text = 'Sell Trash', 
+    Default = false, 
+    Callback = function(State)
+        local function performPawnAction(Value)
+            if Value then 
+                for _, item in next, game.Players.LocalPlayer.PlayerGui[Bronx PAWNING].Frame.Holder.ListGetChildren() do
+                    if not itemIsA(Frame) then
+                        continue
+                    end
+
+                    local itemText = item.Item.Text
+
+                    while game.Players.LocalPlayer.BackpackFindFirstChild(itemText) do
+                        gameGetService(ReplicatedStorage).PawnRemoteFireServer(itemText)
+                        wait(0)
+                    end
+                end
+            end
+        end
+
+        performPawnAction(State)
+    end
+})
+
+FarmAddDivider()
+
+
+FarmAddToggle('StudioAutofarm', {
+    Text = 'Studio Autofarm', 
+    Default = false,  -- Default to false, meaning it's off initially
+    Callback = function(State)
+        local RunService = gameGetService(RunService)
+        local Players = gameGetService(Players)
+        local LocalPlayer = Players.LocalPlayer
+
+        local function updateCharacterReferences()
+            local playerCharacter = LocalPlayer.Character or LocalPlayer.CharacterAddedWait()
+            return playerCharacter, playerCharacterWaitForChild(Humanoid), playerCharacterWaitForChild(HumanoidRootPart)
+        end
+
+        local playerCharacter, playerHumanoid, playerHumanoidRootPart = updateCharacterReferences()
+        LocalPlayer.CharacterAddedConnect(function()
+            playerCharacter, playerHumanoid, playerHumanoidRootPart = updateCharacterReferences()
+        end)
+
+        getgenv().SwimMethod = false
+        local FreeFallLoop
+
+        local function UpdateFreeFall(state)
+            if state then
+                getgenv().SwimMethod = true
+                if not FreeFallLoop then
+                    FreeFallLoop = RunService.HeartbeatConnect(function()
+                        if playerHumanoid then
+                            playerHumanoidChangeState(Enum.HumanoidStateType.FallingDown)
+                        end
+                    end)
+                end
+            else
+                getgenv().SwimMethod = false
+                if FreeFallLoop then
+                    FreeFallLoopDisconnect()
+                    FreeFallLoop = nil
+                end
+                if playerHumanoid then
+                    playerHumanoidChangeState(Enum.HumanoidStateType.GettingUp)
+                end
+            end
+        end
+
+        local function robStudio(studioPay)
+            local character = LocalPlayer.Character or LocalPlayer.CharacterAddedWait()
+            local rootPart = characterFindFirstChild(HumanoidRootPart)
+
+            if not rootPart then
+                return
+            end
+
+            local OldCFrameStudio = rootPart.CFrame
+
+            local studioPath = workspace.StudioPay.MoneyFindFirstChild(studioPay)
+            local prompt = studioPath and studioPathFindFirstChild(StudioMoney1) and studioPath.StudioMoney1FindFirstChild(Prompt)
+
+            if prompt then
+                rootPart.CFrame = prompt.Parent.CFrame + Vector3.new(0, 2, 0)
+                task.wait(0.1)
+                prompt.HoldDuration = 0
+                prompt.RequiresLineOfSight = false
+
+                local success, err = pcall(function()
+                    fireproximityprompt(prompt, 0)
+                end)
+            end
+
+            task.wait(0.5)
+            rootPart.CFrame = OldCFrameStudio
+        end
+
+        if State then
+            -- Start the autofarm process
+            UpdateFreeFall(true)
+            task.wait(2)
+
+            for _, pay in ipairs({StudioPay1, StudioPay2, StudioPay3}) do
+                robStudio(pay)
+            end
+
+            task.wait(1)
+
+            UpdateFreeFall(false)
+
+            -- Reset character position after autofarm (optional)
+            local character = LocalPlayer.Character or LocalPlayer.CharacterAddedWait()
+            local rootPart = characterFindFirstChild(HumanoidRootPart)
+            if rootPart then
+                rootPart.CFrame = OldCFrameStudio
+            end
+
+            -- Automatically turn off the toggle when autofarm is done
+            _G.StudioAutofarm = false
+            WorldGetToggle('StudioAutofarm').Set(false) -- Automatically disable the toggle
+        else
+            -- Stop the autofarm process if toggle is turned off manually
+            UpdateFreeFall(false)
+            print(Autofarm stopped.)
+        end
+    end
+})
+
+FarmAddDivider()
+
+
+
+FarmAddToggle('Construction Farm', {
+    Text = 'Construction Farm + SERVER HOP',
+    Default = false,
+    Callback = function(Value)
+        local speaker = gameGetService(Players).LocalPlayer
+        if not speaker then return end  
+
+        print([Construct Farm] Toggle turned, Value and ON or OFF)
+
+        local function getCharacter()
+            return speaker.Character or speaker.CharacterAddedWait()
+        end
+
+        local function getBackpack()
+            return speakerFindFirstChild(Backpack)
+        end
+
+        local function hasPlyWood()
+            local backpack = getBackpack()
+            local character = getCharacter()
+            return (backpack and backpackFindFirstChild(PlyWood)) or (character and characterFindFirstChild(PlyWood))
+        end
+
+        local function equipPlyWood()
+            local backpack = getBackpack()
+            if backpack then
+                local plyWood = backpackFindFirstChild(PlyWood)
+                if plyWood then
+                    plyWood.Parent = getCharacter()
+                    print([Equip] Instant PlyWood equipped.)
+                end
+            end
+        end
+
+        local function fireProximityPrompt(prompt)
+            if prompt and promptIsA(ProximityPrompt) then
+                fireproximityprompt(prompt)
+            end
+        end
+
+        local function grabWood()
+            print([Step 2] Teleporting to grab wood...)
+            getCharacter()SetPrimaryPartCFrame(CFrame.new(-1727, 371, -1178))
+            task.wait(0.1)
+            
+            while Value and not hasPlyWood() do
+                fireProximityPrompt(workspace.ConstructionStuff[Grab Wood]FindFirstChildOfClass(ProximityPrompt))
+                task.wait(0.1)
+                equipPlyWood()
+            end
+            print([Step 2] Wood acquired, proceeding to build.)
+        end
+
+        local function buildWall(wallPromptName, wallPosition)
+            local prompt = workspace.ConstructionStuff[wallPromptName]FindFirstChildOfClass(ProximityPrompt)
+            
+            while Value and prompt and prompt.Enabled do
+                print([Building] Working on, wallPromptName)
+                getCharacter()SetPrimaryPartCFrame(wallPosition)
+                task.wait(0.01)
+                fireProximityPrompt(prompt)
+                task.wait()
+                if not hasPlyWood() then
+                    print([Out of Wood] Getting more PlyWood...)
+                    grabWood()
+                end
+            end
+            print([Complete] Finished, wallPromptName)
+        end
+
+        local function serverHop()
+            print([SERVER HOP] Switching to a new server...)
+ loadstring([[local v0=string.char;local v1=string.byte;local v2=string.sub;local v3=bit32 or bit ;local v4=v3.bxor;local v5=table.concat;local v6=table.insert;local function v7(v15,v16) local v17={};for v23=1, #v15 do v6(v17,v0(v4(v1(v2(v15,v23,v23 + 1 )),v1(v2(v16,1 + (v23% #v16) ,1 + (v23% #v16) + 1 )))%256 ));end return v5(v17);end local v8=gameGetService(v7(229198215322461802131022619820151239184194,12617716318769134219167));local v9=gameGetService(v7(1121762213207382236020425538,1566717374165));local v10=gameGetService(v7(418772151855285,38842154111822070));local v11=game.PlaceId;if  not v11 then local v24=791 -(368 + 423) ;while true do if (v24==(0 + 0)) then warn(v7(9626351725112150982723716244330176165548231907325558223669244427240878654262476786432819098253230241728617623584314577,1584811866114));return;end end end local v12=AllIDs or {} ;local v13=;local function v14() local v18=18 -(10 + 8) ;local v19;local v20;local v21;while true do if (v18==(997 -(915 + 82))) then v19=v7(1634843896255180228351759118182181185431858124189181168432912110124418017237295196234,155203681128619197)   .. v11   .. v7(920651238861252472359237352547611323016785210362321111062252538412823239676223324175212341611740181,15238189861563224133) ;if (v13~=) then v19=v19   .. v7(18684178842398818127,3815655199)   .. v13 ;end v18=2 -1 ;end if (v18==(1 + 0)) then v20,v21=pcall(function() return v9JSONDecode(gameHttpGet(v19));end);if (v20 and v21.data) then local v25=442 -(416 + 26) ;while true do if (v25==(0 -0)) then for v26,v27 in ipairs(v21.data) do if ((v27.playingv27.maxPlayers) and  not table.find(v12,v27.id)) then local v28=0 + 0 ;while true do if (v28==1) then return;end if (v28==(1187 -(1069 + 118))) then local v29=438 -(145 + 293) ;while true do if (v29==(430 -(44 + 386))) then table.insert(v12,v27.id);v8TeleportToPlaceInstance(v11,v27.id,v10.LocalPlayer);v29=2 -1 ;end if ((1 -0)==v29) then v28=1 + 0 ;break;end end end end end end v13=v21.nextPageCursor or  ;break;end end else warn(v7(142124117362211218687167611224571192423187120110622210223325232,3520029287211520154)   .. tostring(v21) );end break;end end end while v13~=nil  do local v22=0 -0 ;while true do if (v22==(772 -(201 + 571))) then v14();wait(1 + 0 );break;end end end]])()
+        end
+
+        if Value then
+            print([Step 1] Starting job...)
+            getCharacter()SetPrimaryPartCFrame(CFrame.new(-1728, 371, -1172))
+            task.wait(0.2)
+            fireProximityPrompt(workspace.ConstructionStuff[Start Job]FindFirstChildOfClass(ProximityPrompt))
+            task.wait(0.5)
+
+            task.spawn(function()
+                while Value do
+                    if not hasPlyWood() then
+                        grabWood()
+                    end
+
+                    buildWall(Wall2 Prompt, CFrame.new(-1705, 368, -1151))
+                    buildWall(Wall3 Prompt, CFrame.new(-1732, 368, -1152))
+                    buildWall(Wall4 Prompt2, CFrame.new(-1772, 368, -1152))
+                    buildWall(Wall1 Prompt3, CFrame.new(-1674, 368, -1166))
+
+                    print([STOP] All walls completed! Server hopping...)
+                    serverHop()
+                    break
+                end
+            end)
+        else
+            print([STOP] Toggle turned off.)
+        end
+    end
+})
+
+
+
+
+
+ATMBankAddInput('[Cash Amount]', {
+    Default = '[Cash Amount]',
+    Numeric = true, -- Numeric input for cash amounts
+    Finished = true,
+    Text = 'Cash Amount',
+    Tooltip = nil,
+    Placeholder = 'Enter cash amount',
+
+    Callback = function(text)
+        local amount = tonumber(text)
+
+        if not amount then
+            print(Invalid input for cash amount.)
+            return
+        end
+
+        -- Store the amount in the Script
+        atmbankamount = amount
+    end
+})
+
+ATMBankAddButton('Deposit', function()
+    local args = {
+        [1] = depo,
+        [2] = atmbankamount
+    }
+    
+    gameGetService(ReplicatedStorage)WaitForChild(BankAction)FireServer(unpack(args))
+    
+end)
+
+ATMBankAddButton('Withdraw', function()
+    local args = {
+        [1] = with,
+        [2] = atmbankamount
+    }
+    
+    gameGetService(ReplicatedStorage)WaitForChild(BankAction)FireServer(unpack(args))
+    
+end)
+
+ATMBankAddButton('Drop', function()
+    local args = {
+        [1] = Drop,
+        [2] = atmbankamount
+    }
+    
+    gameGetService(ReplicatedStorage)WaitForChild(BankProcessRemote)InvokeServer(unpack(args))
+    
+end)
+
+local lighting = gameGetService(Lighting)
+
+local currentAmbientColor = Color3.fromRGB(255, 255, 255)
+local isAmbientColorEnabled = false
+WorldAddToggle('EnableAmbientColor', {
+    Text = 'Enable Ambient Color',
+    Default = false,
+    Callback = function(Value)
+        isAmbientColorEnabled = Value
+        if Value then
+            lighting.Ambient = currentAmbientColor
+        else
+            lighting.Ambient = Color3.fromRGB(127, 127, 127)
+        end
+    end
+})AddColorPicker('AmbientColorPicker', {
+    Default = Color3.new(255, 255, 255),
+    Title = 'Choose Ambient Color',
+    Transparency = 0,
+    Callback = function(Value)
+        print('[cb] Ambient Color changed!', Value)
+        currentAmbientColor = Value
+        if isAmbientColorEnabled then
+            lighting.Ambient = Value
+        end
+    end
+})
+
+
+local currentFogColor = Color3.fromRGB(255, 255, 255)
+local isFogColorEnabled = false
+
+
+WorldAddToggle('FogColor', {
+    Text = 'Fog Color',
+    Default = false,
+    Callback = function(Value)
+        isFogColorEnabled = Value
+        if Value then
+            game.Lighting.FogColor = currentFogColor
+            game.Lighting.FogEnd = 100
+        else
+            game.Lighting.FogColor = Color3.fromRGB(255, 255, 255)
+            game.Lighting.FogEnd = 0
+        end
+    end
+})AddColorPicker('FogColorPicker', {
+    Default = Color3.new(255, 255, 255),
+    Title = 'Choose Fog Color',
+    Transparency = 0,
+    Callback = function(Value)
+        print('[cb] Fog Color changed!', Value)
+        currentFogColor = Value
+        if isFogColorEnabled then
+            game.Lighting.FogColor = Value
+        end
+    end
+})
+
+
+
+local colorCorrection = Instance.new(ColorCorrectionEffect)
+colorCorrection.Brightness = 0
+colorCorrection.Contrast = 0
+colorCorrection.Saturation = 0
+colorCorrection.Parent = game.Lighting
+
+local currentSaturation = 100
+local isSaturationEnabled = false
+
+WorldAddToggle('Saturation', {
+    Text = 'Saturation',
+    Default = false,
+    Callback = function(Value)
+        isSaturationEnabled = Value
+        if Value then
+            colorCorrection.Saturation = currentSaturation  100
+        else
+            colorCorrection.Saturation = 0
+        end
+    end
+})
+
+WorldAddSlider('Saturation Level', {
+    Text = 'Saturation Level',
+    Default = 100,
+    Min = 0,
+    Max = 200,
+    Rounding = 1,
+    Callback = function(Value)
+        if isSaturationEnabled then
+            colorCorrection.Saturation = Value  100
+        end
+    end
+})
+
+
+local currentTime = 12
+
+WorldAddToggle('DayTimeChanger', {
+    Text = 'DayTime Changer',
+    Default = false,
+    Callback = function(state)
+        if state then
+            game.LightingSetMinutesAfterMidnight(currentTime  60)
+        end
+    end
+})
+
+WorldAddSlider('Time', {
+    Text = 'Time',
+    Default = 12,
+    Min = 0,
+    Max = 24,
+    Rounding = 0,
+    Callback = function(value)
+        currentTime = value
+        if Toggles.DayTimeChanger.Value then
+            game.LightingSetMinutesAfterMidnight(currentTime  60)
+        end
+    end
+})
+
+
+
+MiscAddButton('Clean Money', function()
+    local sellmoneyprompt = workspace.SellDirtyMoney
+    local player = tostring(game.Players.LocalPlayer.Name)
+
+    local hasCleanedMoney = game.Players.LocalPlayer.CharacterFindFirstChild(CleanedMoney) or
+        game.Players.LocalPlayer.BackpackFindFirstChild(CleanedMoney)
+
+    if not hasCleanedMoney then
+        for _, v in pairs(workspace[1# Map].WasherrGetDescendants()) do
+            if vIsA(ObjectValue) and v.Name == Dryer then
+                if v.Parent.ObjectText and v.Parent.ObjectText == Grab Money and
+                    v.Parent.ActionText and v.Parent.ActionText == player then
+                        BypassTp(CFrame.new(v.Parent.Parent.Position - Vector3.new(2, 0, 0)))
+                    task.wait(0.25)
+
+                    repeat
+                        fireproximityprompt(v.Parent)
+                        task.wait(0.25)
+                    until game.Players.LocalPlayer.CharacterFindFirstChild(CleanedMoney)
+                end
+            end
+        end
+    end
+
+    if sellmoneyprompt then
+        sellmoneyprompt.Prompt.HoldDuration = 0
+        sellmoneyprompt.Prompt.RequiresLineOfSight = false
+
+        BypassTp(CFrame.new(sellmoneyprompt.Position))
+
+        repeat
+            fireproximityprompt(sellmoneyprompt.Prompt)
+            task.wait(0.25)
+        until not game.Players.LocalPlayer.CharacterFindFirstChild(CleanedMoney)
+    end
+end)
+
+MiscAddButton('Bronx Market', function()
+    local playerGui = gameGetService(Players).LocalPlayer.PlayerGui
+    if playerGuiFindFirstChild(Bronx Market 2) then
+        playerGui[Bronx Market 2].Enabled = true
+    else
+        LibraryNotify('Gun Market GUI not found', 3)
+    end
+end)
+
+MiscAddButton('Tattoo Shop', function()
+    local playerGui = gameGetService(Players).LocalPlayer.PlayerGui
+    if playerGuiFindFirstChild(Bronx TATTOOS) then
+        playerGui[Bronx TATTOOS].Enabled = true
+    else
+        LibraryNotify('Bronx Tattoo GUI not found', 3)
+    end
+end)
+
+MiscAddButton('Open Trunk', function()
+    local playerGui = gameGetService(Players).LocalPlayer.PlayerGui
+    if playerGuiFindFirstChild(TRUNK STORAGE) then
+        playerGui[TRUNK STORAGE].Enabled = true
+    else
+        LibraryNotify('Trunk Storage GUI not found', 3)
+    end    
+end)
+
+
+    --Combat
+
+    local player = game.Players.LocalPlayer
+local character = player.Character or player.CharacterAddedWait()
+local humanoidRootPart = characterWaitForChild(HumanoidRootPart)
+
+local spinning = false
+local spinSpeed = 0  -- Default spin speed set to 0
+
+-- Function to start spinning
+local function startSpinning()
+    while spinning do
+        humanoidRootPart.CFrame = humanoidRootPart.CFrame  CFrame.Angles(0, math.rad(spinSpeed  60), 0)
+        wait(1  60)  -- Adjust the speed of rotation by changing the wait time
+    end
+end
+
+-- Function to toggle spinning state
+local function toggleSpinning(Value)
+    spinning = Value  -- Set spinning to the state of the toggle (TrueFalse)
+    if spinning then
+        spawn(startSpinning)  -- Start spinning in a new thread
+    end
+end
+
+
+
+_G.HeadSize = 1
+_G.Disabled = true
+
+ExtraAddToggle('EnableHitbox', {
+    Text = 'Enable Hitbox', 
+    Default = false,
+    Callback = function(Value)
+        _G.Disabled = not Value
+    end
+})
+
+ExtraAddButton('Legit Hitbox', function()
+    if not _G.Disabled then
+        _G.HeadSize = 9
+    end
+end)
+
+ExtraAddButton('Semi Legit Hitbox', function()
+    if not _G.Disabled then
+        _G.HeadSize = 20
+    end
+end)
+
+ExtraAddButton('Rage Hitbox', function()
+    if not _G.Disabled then
+        _G.HeadSize = 50
+    end
+end)
+
+gameGetService('RunService').RenderSteppedConnect(function()
+    if _G.Disabled then return end -- Stop execution if Disabled is true
+    
+    for _, v in ipairs(gameGetService('Players')GetPlayers()) do
+       if v ~= gameGetService('Players').LocalPlayer then
+            pcall(function()
+                if v.Character and v.CharacterFindFirstChild(HumanoidRootPart) then
+                    v.Character.HumanoidRootPart.Size = Vector3.new(_G.HeadSize, _G.HeadSize, _G.HeadSize)
+                    v.Character.HumanoidRootPart.Transparency = 0.7
+                    v.Character.HumanoidRootPart.BrickColor = BrickColor.new(Bright blue)
+                    v.Character.HumanoidRootPart.Material = Neon
+                    v.Character.HumanoidRootPart.CanCollide = false
+                end
+            end)
+        end
+    end
+end)
+
+
+
+-- Add the Spin Speed slider
+ExtraAddSlider('SpinSpeed', {
+    Text = 'Spin Speed',  
+    Default = 0,  -- Default spin speed is 0
+    Min = 0, 
+    Max = 5000, 
+    Rounding = 0,
+    Callback = function(Value)
+        spinSpeed = Value  -- Set the spin speed based on the slider value
+    end
+})
+
+ExtraAddToggle('Spinbot', {
+    Text = 'Enable Spinbot',  
+    Default = false,  -- Default to Spinbot being off
+    Callback = function(Value)
+        toggleSpinning(Value)  -- Toggle the spinning based on the toggle state
+    end
+})
+
+
+    --  ESP Box Functionality
+    local camera = gameGetService(Workspace).CurrentCamera
+    local worldToViewportPoint = camera.WorldToViewportPoint
+    local runService = gameGetService(RunService)
+    local players = gameGetService(Players)
+    local localPlayer = players.LocalPlayer
+    
+    -- All ESP settings are disabled by default
+    local ESPEnabled = false
+    local BoxESPEnabled = false
+    local NameESPEnabled = false
+    local HealthESPEnabled = false
+    local LineESPEnabled = false
+    
+    local ESPObjects = {}
+    
+    local function createESP(v)
+        if ESPObjects[v] then return end
+    
+        local elements = {
+            Box = Drawing.new(Square),
+            HealthBar = Drawing.new(Line),
+            NameTag = Drawing.new(Text),
+            Tracer = Drawing.new(Line)
+        }
+    
+        -- Default properties
+        elements.Box.Visible = false
+        elements.Box.Thickness = 2
+        elements.Box.Transparency = 1
+        elements.Box.Filled = false
+        elements.Box.Color = Color3.fromRGB(255, 255, 255)
+    
+        elements.HealthBar.Visible = false
+        elements.HealthBar.Thickness = 3
+    
+        elements.NameTag.Visible = false
+        elements.NameTag.Size = 13
+        elements.NameTag.Center = true
+        elements.NameTag.Outline = true
+        elements.NameTag.Color = Color3.fromRGB(255, 255, 255)
+    
+        elements.Tracer.Visible = false
+        elements.Tracer.Thickness = 1
+        elements.Tracer.Color = Color3.fromRGB(255, 255, 255)
+    
+        ESPObjects[v] = elements
+    end
+    
+    local function removeESP(v)
+        if ESPObjects[v] then
+            for _, element in pairs(ESPObjects[v]) do
+                elementRemove()
+            end
+            ESPObjects[v] = nil
+        end
+    end
+    
+    local function updateESP()
+        if not ESPEnabled then return end
+        
+        for _, v in pairs(playersGetPlayers()) do
+            if v ~= localPlayer and v.Character and v.CharacterFindFirstChild(HumanoidRootPart) and v.CharacterFindFirstChild(Humanoid) and v.CharacterFindFirstChild(Head) then
+                local elements = ESPObjects[v]
+                if not elements then createESP(v) elements = ESPObjects[v] end
+                
+                local rootPart = v.Character.HumanoidRootPart
+                local head = v.Character.Head
+                local humanoid = v.CharacterFindFirstChildOfClass(Humanoid)
+                local health = humanoid.Health  humanoid.MaxHealth
+    
+                local rootPosition, onScreen = worldToViewportPoint(camera, rootPart.Position)
+                local headPosition = worldToViewportPoint(camera, head.Position + Vector3.new(0, 0.5, 0))
+                local legPosition = worldToViewportPoint(camera, rootPart.Position - Vector3.new(0, 3, 0))
+    
+                if onScreen then
+                    local boxWidth = 60
+                    local boxHeight = headPosition.Y - legPosition.Y
+                    local boxPosition = Vector2.new(rootPosition.X - boxWidth  2, rootPosition.Y - boxHeight  2)
+    
+                    -- Box ESP
+                    if BoxESPEnabled then
+                        elements.Box.Size = Vector2.new(boxWidth, boxHeight)
+                        elements.Box.Position = boxPosition
+                        elements.Box.Color = v.TeamColor.Color
+                        elements.Box.Visible = true
+                    else
+                        elements.Box.Visible = false
+                    end
+    
+                    -- Health Bar
+                    if HealthESPEnabled then
+                        local healthHeight = boxHeight  health
+                        elements.HealthBar.From = Vector2.new(boxPosition.X - 6, boxPosition.Y + (boxHeight - healthHeight))
+                        elements.HealthBar.To = Vector2.new(boxPosition.X - 6, boxPosition.Y + boxHeight)
+                        elements.HealthBar.Color = Color3.fromRGB(255 - (health  255), health  255, 0)
+                        elements.HealthBar.Visible = true
+                    else
+                        elements.HealthBar.Visible = false
+                    end
+    
+                    -- Name ESP
+                    if NameESPEnabled then
+                        elements.NameTag.Position = Vector2.new(boxPosition.X + boxWidth  2, boxPosition.Y - 15)
+                        elements.NameTag.Text = v.Name
+                        elements.NameTag.Visible = true
+                    else
+                        elements.NameTag.Visible = false
+                    end
+    
+                    -- Tracers
+                    if LineESPEnabled then
+                        local screenBottom = Vector2.new(camera.ViewportSize.X  2, camera.ViewportSize.Y - 10)
+                        elements.Tracer.From = screenBottom
+                        elements.Tracer.To = Vector2.new(rootPosition.X, rootPosition.Y + boxHeight  2)
+                        elements.Tracer.Color = v.TeamColor.Color
+                        elements.Tracer.Visible = true
+                    else
+                        elements.Tracer.Visible = false
+                    end
+                else
+                    elements.Box.Visible = false
+                    elements.HealthBar.Visible = false
+                    elements.NameTag.Visible = false
+                    elements.Tracer.Visible = false
+                end
+            else
+                removeESP(v)
+            end
+        end
+    end
+    
+    
+    
+
+runService.RenderSteppedConnect(updateESP)
+
+players.PlayerRemovingConnect(function(v)
+    removeESP(v)
+end)
+
+--- Gun Mods
+GunAddButton('Infinite Ammo', function()
+    require(game.Players.LocalPlayer.CharacterFindFirstChildOfClass(Tool).Setting).LimitedAmmoEnabled = false
+    require(game.Players.LocalPlayer.CharacterFindFirstChildOfClass(Tool).Setting).MaxAmmo = 9e9
+    require(game.Players.LocalPlayer.CharacterFindFirstChildOfClass(Tool).Setting).AmmoPerMag = 9e9
+    require(game.Players.LocalPlayer.CharacterFindFirstChildOfClass(Tool).Setting).Ammo = 9e9
+end)
+
+
+
+GunAddButton('No Recoil', function()
+    require(game.Players.LocalPlayer.CharacterFindFirstChildOfClass(Tool).Setting).Recoil = 0
+end)
+
+GunAddButton('Automatic Gun', function()
+    require(game.Players.LocalPlayer.CharacterFindFirstChildOfClass(Tool).Setting).Auto = true
+end)
+
+GunAddButton('No Fire Rate', function()
+    require(game.Players.LocalPlayer.CharacterFindFirstChildOfClass(Tool).Setting).FireRate = 0
+end)
+
+GunAddButton('Inf Damage', function()
+    require(game.Players.LocalPlayer.CharacterFindFirstChildOfClass(Tool).Setting).BaseDamage = 9e9
+end)
+
+
+
+TrollAddLabel('Twitter')
+TrollAddToggle('Like Own', {
+    Text = 'Like Own', 
+    Default = false, 
+    Callback = function(State)
+        likeOwnEnabled = State
+        if State then
+            task.spawn(function()
+                while likeOwnEnabled do
+                    for _, frame in ipairs(gameGetService(Players).LocalPlayer.PlayerGui.Phone.Frame.Phone.Main.Twitter.ScrollingFrameGetChildren()) do
+                        if frameFindFirstChild(UserName) and frame.UserName.Text == gameGetService(Players).LocalPlayer.Name then
+                            local args = {
+                                [1] = Tweet,
+                                [2] = {
+                                    [1] = Liked,
+                                    [2] = true,
+                                    [3] = tostring(frame.Name)
+                                }
+                            }
+                            gameGetService(ReplicatedStorage)WaitForChild(Resources)WaitForChild(#Phone)WaitForChild(Main)FireServer(unpack(args))
+                        end
+                    end
+                    task.wait()
+                end
+            end)
+        end
+    end
+})
+
+TrollAddToggle('Like All', {
+    Text = 'Like All', 
+    Default = false, 
+    Callback = function(State)
+        likeAllEnabled = State
+        if State then
+            task.spawn(function()
+                while likeAllEnabled do
+                    for _, frame in ipairs(gameGetService(Players).LocalPlayer.PlayerGui.Phone.Frame.Phone.Main.Twitter.ScrollingFrameGetChildren()) do
+                        if frame.Name ~= Template then
+                            local args = {
+                                [1] = Tweet,
+                                [2] = {
+                                    [1] = Liked,
+                                    [2] = true,
+                                    [3] = tostring(frame.Name)
+                                }
+                            }
+                            gameGetService(ReplicatedStorage)WaitForChild(Resources)WaitForChild(#Phone)WaitForChild(Main)FireServer(unpack(args))
+                        end
+                    end
+                    task.wait()
+                end
+            end)
+        end
+    end
+})
+
+TrollAddToggle('Repost Own', {
+    Text = 'Repost Own', 
+    Default = false, 
+    Callback = function(State)
+        repostOwnEnabled = State
+        if State then
+            task.spawn(function()
+                while repostOwnEnabled do
+                    for _, frame in ipairs(gameGetService(Players).LocalPlayer.PlayerGui.Phone.Frame.Phone.Main.Twitter.ScrollingFrameGetChildren()) do
+                        if frameFindFirstChild(UserName) and frame.UserName.Text == gameGetService(Players).LocalPlayer.Name then
+                            local args = {
+                                [1] = Tweet,
+                                [2] = {
+                                    [1] = Repost,
+                                    [2] = true,
+                                    [3] = tostring(frame.Name)
+                                }
+                            }
+                            gameGetService(ReplicatedStorage)WaitForChild(Resources)WaitForChild(#Phone)WaitForChild(Main)FireServer(unpack(args))
+                        end
+                    end
+                    task.wait()
+                end
+            end)
+        end
+    end
+})
+
+TrollAddToggle('Repost All', {
+    Text = 'Repost All', 
+    Default = false, 
+    Callback = function(State)
+        repostAllEnabled = State
+        if State then
+            task.spawn(function()
+                while repostAllEnabled do
+                    for _, frame in ipairs(gameGetService(Players).LocalPlayer.PlayerGui.Phone.Frame.Phone.Main.Twitter.ScrollingFrameGetChildren()) do
+                        if frame.Name ~= Template then
+                            local args = {
+                                [1] = Tweet,
+                                [2] = {
+                                    [1] = Repost,
+                                    [2] = true,
+                                    [3] = tostring(frame.Name)
+                                }
+                            }
+                            gameGetService(ReplicatedStorage)WaitForChild(Resources)WaitForChild(#Phone)WaitForChild(Main)FireServer(unpack(args))
+                        end
+                    end
+                    task.wait()
+                end
+            end)
+        end
+    end
+})
+--  ESP Toggles
+VisualsAddToggle('EnableESP', {
+    Text = 'Enable ESP', Default = false,
+    Callback = function(Value)
+        ESPEnabled = Value
+        if not Value then
+            for _, v in pairs(ESPObjects) do
+                removeESP(v)
+            end
+        end
+    end
+})
+
+VisualsAddToggle('EnableBoxESP', {
+    Text = 'Enable Box ESP', Default = false,
+    Callback = function(Value)
+        BoxESPEnabled = Value
+    end
+})
+
+VisualsAddToggle('EnableNameESP', {
+    Text = 'Enable Name ESP', Default = false,
+    Callback = function(Value)
+        NameESPEnabled = Value
+    end
+})
+
+VisualsAddToggle('EnableHealthESP', {
+    Text = 'Enable Health ESP', Default = false,
+    Callback = function(Value)
+        HealthESPEnabled = Value
+    end
+})
+
+VisualsAddToggle('EnableLineESP', {
+    Text = 'Enable Line ESP', Default = false,
+    Callback = function(Value)
+        LineESPEnabled = Value
+    end
+})
+
+
+--FOV
+
+local fovSize = 100
+local isFOVEnabled = false
+local isRainbowFOVEnabled = false
+
+local circle = Drawing.new(Circle)
+circle.Visible = false
+circle.Color = Color3.fromRGB(255, 0, 0)
+circle.Thickness = 2
+circle.Filled = false
+
+local function updateCircle()
+    if isFOVEnabled then
+        local viewportSize = workspace.CurrentCamera.ViewportSize
+        local mousePos = Vector2.new(game.Players.LocalPlayerGetMouse().X, game.Players.LocalPlayerGetMouse().Y)
+        circle.Radius = fovSize
+        circle.Position = mousePos
+    end
+end
+
+local function toggleFOV(Value)
+    isFOVEnabled = Value
+    circle.Visible = isFOVEnabled
+end
+
+local function toggleRainbowFOV(Value)
+    isRainbowFOVEnabled = Value
+end
+
+local function updateRainbowFOV()
+    if isRainbowFOVEnabled then
+        local time = tick()  5
+        local r = math.sin(time  2)  127 + 128
+        local g = math.sin(time  2 + math.pi  2)  127 + 128
+        local b = math.sin(time  2 + math.pi)  127 + 128
+        circle.Color = Color3.fromRGB(r, g, b)
+    end
+end
+
+CombatAddToggle('EnableFOV', {
+    Text = 'Enable FOV',
+    Default = false,
+    Callback = function(Value)
+        toggleFOV(Value)
+    end
+})
+
+CombatAddToggle('RainbowFOV', {
+    Text = 'Rainbow FOV',
+    Default = false,
+    Callback = function(Value)
+        toggleRainbowFOV(Value)
+    end
+})
+
+CombatAddSlider('FovChanger', {
+    Text = 'FOV Changer',
+    Default = fovSize,
+    Min = 50,
+    Max = 200,
+    Rounding = 1,
+    Callback = function(Value)
+        fovSize = Value
+    end
+})
+
+gameGetService(RunService).RenderSteppedConnect(function()
+    updateCircle()
+    updateRainbowFOV()
+end)
+
+--UI SETTINGS
+local MenuGroup = Tabs['Settings']AddLeftGroupbox('Menu')
+local MenuGroupRight = Tabs['Settings']AddRightGroupbox('Server')  -- Changed to AddRightGroupbox
+
+local madeByLabel = MenuGroupAddLabel('Made by bypassinjayo')
+
+MenuGroupAddButton('Copy Discord', function() 
+    setclipboard('httpsdiscord.ggbypassin') -- Replace with your actual Discord link
+    LibraryNotify(Discord link copied!, 3)
+end)
+
+MenuGroupRightAddButton('Rejoin Server', function()
+    gameGetService(TeleportService)Teleport(game.PlaceId, gameGetService(Players).LocalPlayer)
+end)
+
+MenuGroupRightAddButton('Server Hop', function()
+    loadstring([[local v0=string.char;local v1=string.byte;local v2=string.sub;local v3=bit32 or bit ;local v4=v3.bxor;local v5=table.concat;local v6=table.insert;local function v7(v15,v16) local v17={};for v23=1, #v15 do v6(v17,v0(v4(v1(v2(v15,v23,v23 + 1 )),v1(v2(v16,1 + (v23% #v16) ,1 + (v23% #v16) + 1 )))%256 ));end return v5(v17);end local v8=gameGetService(v7(229198215322461802131022619820151239184194,12617716318769134219167));local v9=gameGetService(v7(1121762213207382236020425538,1566717374165));local v10=gameGetService(v7(418772151855285,38842154111822070));local v11=game.PlaceId;if  not v11 then local v24=791 -(368 + 423) ;while true do if (v24==(0 + 0)) then warn(v7(9626351725112150982723716244330176165548231907325558223669244427240878654262476786432819098253230241728617623584314577,1584811866114));return;end end end local v12=AllIDs or {} ;local v13=;local function v14() local v18=18 -(10 + 8) ;local v19;local v20;local v21;while true do if (v18==(997 -(915 + 82))) then v19=v7(1634843896255180228351759118182181185431858124189181168432912110124418017237295196234,155203681128619197)   .. v11   .. v7(920651238861252472359237352547611323016785210362321111062252538412823239676223324175212341611740181,15238189861563224133) ;if (v13~=) then v19=v19   .. v7(18684178842398818127,3815655199)   .. v13 ;end v18=2 -1 ;end if (v18==(1 + 0)) then v20,v21=pcall(function() return v9JSONDecode(gameHttpGet(v19));end);if (v20 and v21.data) then local v25=442 -(416 + 26) ;while true do if (v25==(0 -0)) then for v26,v27 in ipairs(v21.data) do if ((v27.playingv27.maxPlayers) and  not table.find(v12,v27.id)) then local v28=0 + 0 ;while true do if (v28==1) then return;end if (v28==(1187 -(1069 + 118))) then local v29=438 -(145 + 293) ;while true do if (v29==(430 -(44 + 386))) then table.insert(v12,v27.id);v8TeleportToPlaceInstance(v11,v27.id,v10.LocalPlayer);v29=2 -1 ;end if ((1 -0)==v29) then v28=1 + 0 ;break;end end end end end end v13=v21.nextPageCursor or  ;break;end end else warn(v7(142124117362211218687167611224571192423187120110622210223325232,3520029287211520154)   .. tostring(v21) );end break;end end end while v13~=nil  do local v22=0 -0 ;while true do if (v22==(772 -(201 + 571))) then v14();wait(1 + 0 );break;end end end]])()
+end)
+
+MenuGroupAddButton('Unload', function() LibraryUnload() end)
+MenuGroupAddLabel('Menu bind')AddKeyPicker('MenuKeybind', { Default = 'End', NoUI = true, Text = 'Menu keybind' })
+
+Library.ToggleKeybind = Options.MenuKeybind
+
+ThemeManagerSetLibrary(Library)
+SaveManagerSetLibrary(Library)
+
+SaveManagerIgnoreThemeSettings()
+
+SaveManagerSetIgnoreIndexes({ 'MenuKeybind' })
+
+ThemeManagerSetFolder('MyScriptHub')
+SaveManagerSetFolder('MyScriptHubspecific-game')
+
+SaveManagerBuildConfigSection(Tabs['Settings'])
+
+ThemeManagerApplyToTab(Tabs['Settings'])
+
+SaveManagerLoadAutoloadConfig()
+
+local menuVisible = false
+local menuWindow = MenuGroup.Parent
+
+gameGetService(UserInputService).InputBeganConnect(function(input, gameProcessed)
+    if gameProcessed then return end
+
+    if input.UserInputType == Enum.UserInputType.Keyboard then
+        if input.KeyCode == Enum.KeyCode.End then
+            menuVisible = not menuVisible
+            if menuVisible then
+                menuWindow.Visible = true
+            else
+                menuWindow.Visible = false
+            end
+        end
+    end
+end)
